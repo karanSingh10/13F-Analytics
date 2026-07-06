@@ -1,70 +1,50 @@
-"""
-Module 5 -- Transaction engine.
+# transaction engine - figures out what changed between two quarters
+# basically doing a full outer join between current and previous quarter holdings
+# then labeling each row as buy/sell/new position/full exit/hold
+#
+# one important thing - we classify on SHARES not dollar value
+# because price moves every quarter anyway so value change doesnt tell you
+# whether the manager actually did anything
 
-Reproduces the SQL FULL OUTER JOIN logic in pandas: for every pair of
-consecutive quarters, join current holdings to previous holdings on
-(cusip, put_call) with how="outer" and classify each row:
-
-    prev NaN,  curr value  -> NEW POSITION
-    prev value, curr NaN   -> FULL EXIT
-    shares up              -> BUY
-    shares down            -> SELL
-    shares unchanged       -> HOLD
-
-Classification is done on SHARES, not value: a position's dollar value
-moves every quarter just from price changes, so value deltas alone would
-flag every single holding as a "trade". Shares only change when the
-manager actually transacts. (Share splits are the known caveat; see
-README.) Dollar deltas are still reported for sizing the trades.
-"""
 from __future__ import annotations
-
 import numpy as np
 import pandas as pd
-
 from . import config
 from .utils import load_parquet, log, save_parquet
 
 KEY = ["cusip", "put_call"]
-SHARE_TOLERANCE = 0.005  # <0.5% share change counts as HOLD (rounding noise)
+SHARE_TOLERANCE = 0.005  # less than 0.5% share change = probably just rounding
 
 
-def _quarter_pairs(quarters: list[str]) -> list[tuple[str, str]]:
-    """[(prev, curr), ...] over chronologically sorted quarters."""
+def _quarter_pairs(quarters):
     qs = sorted(quarters)
     return list(zip(qs[:-1], qs[1:]))
 
 
-def classify_pair(prev_df: pd.DataFrame, curr_df: pd.DataFrame) -> pd.DataFrame:
-    """FULL OUTER JOIN of two quarters -> classified transactions."""
-    cols = KEY + ["issuer", "title", "asset_class", "shares", "value_usd",
-                  "portfolio_weight"]
+def classify_pair(prev_df, curr_df):
+    cols = KEY + ["issuer", "title", "asset_class", "shares", "value_usd", "portfolio_weight"]
     merged = prev_df[cols].merge(
         curr_df[cols], on=KEY, how="outer",
         suffixes=("_prev", "_curr"), indicator=True,
     )
 
-    # Descriptive fields: prefer current quarter's, fall back to previous.
     for c in ("issuer", "title", "asset_class"):
         merged[c] = merged[f"{c}_curr"].fillna(merged[f"{c}_prev"])
 
     sh_prev = merged["shares_prev"].fillna(0.0)
     sh_curr = merged["shares_curr"].fillna(0.0)
-    merged["share_change"] = sh_curr - sh_prev
-    merged["value_change_usd"] = (
-        merged["value_usd_curr"].fillna(0.0) - merged["value_usd_prev"].fillna(0.0)
-    )
+    merged["share_change"]     = sh_curr - sh_prev
+    merged["value_change_usd"] = merged["value_usd_curr"].fillna(0.0) - merged["value_usd_prev"].fillna(0.0)
 
     rel = np.where(sh_prev > 0, np.abs(merged["share_change"]) / sh_prev, np.inf)
 
     conditions = [
-        merged["_merge"] == "right_only",                       # NEW POSITION
-        merged["_merge"] == "left_only",                        # FULL EXIT
-        (merged["share_change"] > 0) & (rel > SHARE_TOLERANCE),  # BUY
-        (merged["share_change"] < 0) & (rel > SHARE_TOLERANCE),  # SELL
+        merged["_merge"] == "right_only",
+        merged["_merge"] == "left_only",
+        (merged["share_change"] > 0) & (rel > SHARE_TOLERANCE),
+        (merged["share_change"] < 0) & (rel > SHARE_TOLERANCE),
     ]
-    labels = ["NEW POSITION", "FULL EXIT", "BUY", "SELL"]
-    merged["action"] = np.select(conditions, labels, default="HOLD")
+    merged["action"] = np.select(conditions, ["NEW POSITION", "FULL EXIT", "BUY", "SELL"], default="HOLD")
 
     keep = KEY + ["issuer", "title", "asset_class",
                   "shares_prev", "shares_curr", "share_change",
@@ -73,10 +53,8 @@ def classify_pair(prev_df: pd.DataFrame, curr_df: pd.DataFrame) -> pd.DataFrame:
     return merged[keep]
 
 
-def build_transactions() -> pd.DataFrame:
-    """Notebook 05 entry point: transactions for every consecutive quarter pair."""
+def build_transactions():
     holdings = load_parquet(config.HOLDINGS_PARQUET)
-
     frames = []
     for prev_q, curr_q in _quarter_pairs(holdings["quarter"].unique().tolist()):
         tx = classify_pair(
@@ -86,8 +64,7 @@ def build_transactions() -> pd.DataFrame:
         tx.insert(0, "quarter", curr_q)
         tx.insert(1, "prev_quarter", prev_q)
         frames.append(tx)
-        log.info("%s vs %s: %s", curr_q, prev_q,
-                 tx["action"].value_counts().to_dict())
+        log.info("%s vs %s: %s", curr_q, prev_q, tx["action"].value_counts().to_dict())
 
     transactions = pd.concat(frames, ignore_index=True)
     save_parquet(transactions, config.TRANSACTIONS_PARQUET)

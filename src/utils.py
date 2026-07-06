@@ -1,9 +1,8 @@
-"""
-Shared utilities: a polite, retrying HTTP session for SEC endpoints and
-small parquet I/O helpers.
-"""
-from __future__ import annotations
+# shared utilities - HTTP session with retries and parquet read/write helpers
+# nothing too fancy here, just making sure we dont hammer the SEC servers
+# and that errors actually show up instead of silently returning None
 
+from __future__ import annotations
 import logging
 import time
 
@@ -21,17 +20,13 @@ if not log.handlers:
 _last_request_ts = 0.0
 
 
-def make_session() -> requests.Session:
-    """Session with automatic retries + exponential backoff.
-
-    Fixes the old pattern of a single requests.get wrapped in a bare
-    `except: return None`, which hid every real error (403s, timeouts,
-    SEC throttling) and produced 'mysteriously empty' DataFrames.
-    """
+def make_session():
+    # retries with backoff so we dont crash on temporary SEC errors
+    # 403, 429, 500 etc will retry automatically up to MAX_RETRIES times
     session = requests.Session()
     retry = Retry(
         total=config.MAX_RETRIES,
-        backoff_factor=1.0,                    # 1s, 2s, 4s, 8s
+        backoff_factor=1.0,
         status_forcelist=(403, 429, 500, 502, 503, 504),
         allowed_methods=("GET",),
     )
@@ -41,8 +36,9 @@ def make_session() -> requests.Session:
     return session
 
 
-def polite_get(session: requests.Session, url: str, timeout: int = 30) -> requests.Response:
-    """GET with SEC rate limiting. Raises on HTTP errors instead of hiding them."""
+def polite_get(session, url, timeout=30):
+    # sleep between requests so we stay under SEC rate limit
+    # raises on HTTP errors instead of returning None and hiding the problem
     global _last_request_ts
     wait = config.REQUEST_DELAY_SECONDS - (time.time() - _last_request_ts)
     if wait > 0:
@@ -53,16 +49,15 @@ def polite_get(session: requests.Session, url: str, timeout: int = 30) -> reques
     return resp
 
 
-def save_parquet(df: pd.DataFrame, path) -> None:
+def save_parquet(df, path):
     path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(path, index=False)
-    log.info("wrote %s  (%d rows, %d cols)", path.name, len(df), df.shape[1])
+    log.info("saved %s  (%d rows)", path.name, len(df))
 
 
-def load_parquet(path) -> pd.DataFrame:
+def load_parquet(path):
     if not path.exists():
         raise FileNotFoundError(
-            f"{path} not found. Run the earlier notebook that produces it first "
-            f"(notebooks pass data through the /data layer, never call each other)."
+            f"cant find {path} - make sure you ran the earlier notebook that creates it"
         )
     return pd.read_parquet(path)
