@@ -5,17 +5,30 @@ from pathlib import Path
 OUT = Path(__file__).resolve().parents[1] / "notebooks"
 OUT.mkdir(exist_ok=True)
 
-SETUP = '''# --- setup: make src/ importable from notebooks/ ---
-import sys, pathlib
-PROJECT_ROOT = pathlib.Path.cwd().parent if pathlib.Path.cwd().name == "notebooks" else pathlib.Path.cwd()
+SETUP = '''# --- setup (run this cell first, every session) ---
+import os, sys, pathlib
+
+# Option A: Google Drive (data persists across sessions -- recommended)
+# from google.colab import drive
+# drive.mount("/content/drive")
+# PROJECT_ROOT = pathlib.Path("/content/drive/MyDrive/13F-Analytics")
+
+# Option B: uploaded zip directly to Colab (data lost on disconnect)
+# PROJECT_ROOT = pathlib.Path("/content/13F-Analytics")
+
+# Option C: running locally
+PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1] if "__file__" in dir() else pathlib.Path.cwd().parent if pathlib.Path.cwd().name == "notebooks" else pathlib.Path.cwd()
+
+os.chdir(str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT))
 
-# On Google Colab, uncomment:
-# !pip install -q pyarrow requests pandas matplotlib
-# then upload/clone the repo so that src/ sits next to notebooks/
+# Install dependencies if needed (uncomment on Colab)
+# import subprocess; subprocess.run(["pip", "install", "-q", "pyarrow", "requests", "pandas", "matplotlib", "numpy"])
 
 import pandas as pd
-pd.set_option("display.float_format", lambda x: f"{x:,.2f}")'''
+pd.set_option("display.float_format", lambda x: f"{x:,.2f}")
+print("Project root:", PROJECT_ROOT)
+print("Ready.")'''
 
 
 def nb(cells):
