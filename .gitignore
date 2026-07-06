@@ -1,0 +1,6 @@
+data/raw_xml/*.xml
+data/processed/*.parquet
+reports/figures/*.png
+reports/portfolio_review.md
+__pycache__/
+.ipynb_checkpoints/
