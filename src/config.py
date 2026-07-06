@@ -22,7 +22,7 @@ N_QUARTERS = 8              # how many recent quarters to analyze
 # NOTE: do NOT hardcode a "Host" header. The old code sent
 # Host: data.sec.gov on every request, which silently breaks calls to
 # www.sec.gov (the Archives server). requests sets Host correctly on its own.
-USER_AGENT = "13F-Analytics research your_email@example.com"  # <-- EDIT ME
+USER_AGENT = "Karanveer Singh klnu5@asu.edu"  # <-- EDIT ME
 
 HEADERS = {
     "User-Agent": USER_AGENT,
