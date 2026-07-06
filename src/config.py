@@ -9,23 +9,10 @@ CIK = "0001067983"       # berkshire hathaway - change this to any manager's CIK
 MANAGER_NAME = "Berkshire Hathaway"   # just for display purposes in charts/reports
 N_QUARTERS = 8           # how many quarters back you want to look
 
-<<<<<<< HEAD
-# ---------------------------------------------------------------------------
-# SEC etiquette
-# ---------------------------------------------------------------------------
-# The SEC *requires* a descriptive User-Agent with contact info.
-# Requests without it get 403'd.  <-- this was the original "403 problem".
-#
-# NOTE: do NOT hardcode a "Host" header. The old code sent
-# Host: data.sec.gov on every request, which silently breaks calls to
-# www.sec.gov (the Archives server). requests sets Host correctly on its own.
-USER_AGENT = "Karanveer Singh klnu5@asu.edu"  # <-- EDIT ME
-=======
 # ---- SEC requires you to identify yourself ----
 # if you dont set this the SEC will return 403 errors and nothing will work
 # put your real name and email here, doesnt need to be anything special
 USER_AGENT = "Your Name your_email@example.com"   # <-- change this before running
->>>>>>> 0b19906 (humanized all text, add CUSIP to tables, personal story in README, remove personal details)
 
 HEADERS = {
     "User-Agent": USER_AGENT,
