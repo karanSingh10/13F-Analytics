@@ -39,13 +39,80 @@ Data flow: `filings.parquet → raw_xml/ → holdings_raw.parquet → holdings.p
 
 ## Quick start
 
+### Option A: Google Colab (recommended, no local setup needed)
+
+Open a new Colab notebook at colab.research.google.com and run these cells in order:
+
+**1. Get the code**
+```python
+!git clone https://github.com/YOUR_USERNAME/13F-Analytics.git
+```
+
+**2. Navigate into the project**
+```python
+import os, sys
+os.chdir('/content/13F-Analytics')
+sys.path.insert(0, '/content/13F-Analytics')
+```
+
+**3. Install dependencies**
+```python
+!pip install pyarrow requests pandas matplotlib numpy -q
+```
+
+**4. Set your User-Agent (required -- the SEC rejects anonymous requests)**
+```python
+!sed -i 's/13F-Analytics research your_email@example.com/Your Name your_email@email.com/' src/config.py
+!grep "USER_AGENT" src/config.py
+```
+
+**5. Verify the engine works (no network needed)**
+```python
+!python tests/test_pipeline.py
+```
+
+**6. Run the full pipeline**
+```python
+!python run_all.py
+```
+
+This downloads 8 quarters of Berkshire Hathaway 13F data from SEC EDGAR, parses holdings, detects transactions, computes portfolio metrics, renders charts, and writes research commentary. Takes about 3 minutes.
+
+To persist data across Colab sessions, mount Google Drive before step 1:
+```python
+from google.colab import drive
+drive.mount('/content/drive')
+!git clone https://github.com/YOUR_USERNAME/13F-Analytics.git /content/drive/MyDrive/13F-Analytics
+import os, sys
+os.chdir('/content/drive/MyDrive/13F-Analytics')
+sys.path.insert(0, '/content/drive/MyDrive/13F-Analytics')
+```
+
+### Option B: Local machine
+
 ```bash
+git clone https://github.com/YOUR_USERNAME/13F-Analytics.git
+cd 13F-Analytics
 pip install -r requirements.txt
 ```
 
-1. **Edit `src/config.py`**: set `USER_AGENT` to your real name and email (the SEC returns 403 to anonymous clients), and optionally change `CIK` / `N_QUARTERS`.
-2. Run the notebooks in order, 01 → 08. Each writes its output to `data/`, so any notebook can be re-run independently.
-3. Or verify the engine without touching the network: `python tests/test_pipeline.py`.
+Edit `src/config.py` and set `USER_AGENT` to your real name and email. Then:
+
+```bash
+python tests/test_pipeline.py   # verify engine works without network
+python run_all.py               # run all 8 notebooks in sequence
+```
+
+### To analyze a different fund manager
+
+Find any manager's CIK at sec.gov/cgi-bin/browse-edgar, then edit two lines in `src/config.py`:
+
+```python
+CIK = "0001067983"          # replace with any manager's 10-digit CIK
+MANAGER_NAME = "Berkshire Hathaway"  # update the display name
+```
+
+Delete `data/processed/` and `data/raw_xml/` contents and re-run.
 
 ## Hard-won lessons encoded in this codebase
 
